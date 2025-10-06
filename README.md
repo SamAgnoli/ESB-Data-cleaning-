@@ -12,7 +12,9 @@ NU:
 SPI-135 (Rapp)
 MFQ (Danielle)
 Matrix (Danielle)
+
 UMN: BCTI, AOT-E, VCB, Vaccine intentions measure, disease severity, vaccine effectiveness, vaccine danger, infection likelihood, CRT
+
 Miscellaneous: Media Diet questionnaire, demographics, IAT
  
 
