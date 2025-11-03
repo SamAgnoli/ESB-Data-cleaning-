@@ -1,0 +1,268 @@
+---
+title: "ESB Analysis Phase 1"
+author: "Blair Brown"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r}
+library("dplyr")
+library("tidyr")
+library("lubridate")
+library("stringr")
+library("ggplot2")
+library("psych")
+```
+
+The following code was used to score the screener measure (7Cs) and invite participants to the study (small percentage of sample overall):
+Screener Cleaning / Rating
+SData <- read.csv("B:\\Studies\\mittal_2024_bronstein_studyone\\data\\screen_data.csv")
+SData <- SData[-c(1:2),]
+SData <- dplyr::rename(SData, "ATC1" = "Q33", "Vax7C1" = "Q2_1", "Vax7C2" = "Q3_1", "Vax7C3" = "Q4_1", "Vax7C4" = "Q5_1", "Vax7C5" = "Q6_1","Vax7C6" = "Q7_1", "Vax7C7" = "Q8_1", "Vax7C8" = "Q9_1", "Vax7C9" = "Q10_1", "Vax7C10" = "Q11_1", "Vax7C11" = "Q12_1", "Vax7C12" = "Q13_1", "Vax7C13" = "Q14_1", "Vax7C14" = "Q15_1", "Vax7C15" = "Q16_1", "Vax7C16" = "Q17_1", "Vax7C17" = "Q18_1", "Vax7C18" = "Q19_1", "Vax7C19" = "Q20_1", "Vax7C20" = "Q21_1", "Vax7C21" = "Q22_1", "Vax7C22" = "Q23_1", "Vax7C23" = "Q24_1", "ATC2" = "Q35")
+SData <- SData %>%
+  mutate(across(Vax7C1:Vax7C23, ~ recode(trimws(.x),
+    "1: Strongly Disagree" = "1",
+    "7: Strongly Agree" = "7",
+    .default = .x  # Leaves "2", "3", etc. untouched
+  ))) %>%
+  mutate(across(Vax7C1:Vax7C23, as.numeric))
+
+SData$Vax7C4 = 7 - SData$Vax7C4
+SData$Vax7C5 = 7 - SData$Vax7C5
+SData$Vax7C9 = 7 - SData$Vax7C9
+SData$Vax7C10 = 7 - SData$Vax7C10
+SData$Vax7C11 = 7 - SData$Vax7C11
+SData$Vax7C12 = 7 - SData$Vax7C12
+SData$Vax7C19 = 7 - SData$Vax7C19
+SData$Vax7C20 = 7 - SData$Vax7C20
+SData$Vax7C21 = 7 - SData$Vax7C21
+
+SData$Vax7C_Score <- rowMeans(select(SData, Vax7C1:Vax7C21), na.rm = TRUE)
+SData <- SData %>% mutate(ATC1 = recode(ATC1, "True" = 0, "False" = 1, .default=NULL))
+SData <- SData %>% mutate(ATC2 = recode(ATC2, "True" = 1, "False" = 0, .default=NULL))
+SData$ATC_Score <- SData$ATC1 + SData$ATC2
+Screener_CodeMatch <- read.csv("B:\\Studies\\mittal_2024_bronstein_studyone\\data\\screen_pdata.csv")
+Screener_CodeMatch <- Screener_CodeMatch %>% select(Participant.id, Completion.code)
+SData <- merge(SData, Screener_CodeMatch, by.x = "PROLIFIC_PID", by.y = "Participant.id", all.x = TRUE)
+SData$code_match <- SData$ProlificCode == SData$Completion.code
+# Only approving people who pass one attention check and also provide the correct code
+ScreenerPaymentIDs <- na.omit(SData$PROLIFIC_PID[SData$code_match & SData$ATC_Score > 0])
+ScreenerPaymentIDs <- paste(ScreenerPaymentIDs, collapse = ", ")
+# Pay these people:
+print(ScreenerPaymentIDs)
+
+# Now finding top 50% of vax hesitant people, recruiting only those who pass both ATCs
+Vax7C_Avg <- mean(SData$Vax7C_Score)
+Screener_VaxHest <- SData[SData$Vax7C_Score > Vax7C_Avg & SData$code_match == TRUE & SData$ATC_Score == 2,]
+ScreenerInviteIDs <- Screener_VaxHest$PROLIFIC_PID
+ScreenerInviteIDs <- paste(ScreenerInviteIDs, collapse = ", ")
+# Invite these people to Phase 1:
+print(ScreenerInviteIDs)
+
+Phase 1 Data Cleaning / Renaming
+```{r}
+# Adjust this file path to your own to load in the data
+Data <- read.csv("B:\\Studies\\mittal_2024_bronstein_studyone\\data\\data_5_14_25.csv") # Final dataset
+# Deletes unneeded rows
+Data <- Data[-c(1:2),]
+Data <- Data %>% filter(Status != "Survey Preview")
+## COLUMN RENAMING
+# Meta-Data, demo, etc.... (+ Age attention check)
+Data <- dplyr::rename(Data, "duration_sec"="Duration..in.seconds.", "meta_browser"="Q250_Browser", "meta_browser_version"="Q250_Version", "meta_OS"="Q250_Operating.System","meta_reso"="Q250_Resolution","desktop"="Q252","prolific_id"="Q253","ac_consent"="Q254","race"="Q258","hispanic_latino"="Q259","arab_me_na"="Q260","sex"="Q261","gender"="Q262","gender_write_in"="Q262_6_TEXT","sexuality"="Q263","sexuality_write_in"="Q263_5_TEXT","fam_members"="Q8","education"="Q9","education_write_in"="Q9_8_TEXT","fam_income"="Q10","employment"="Q11","pres_candidate"="Q12","political_party"="Q13","state"="Q14","age"="Q241","ATC1"="Q246")
+# RENAMING MEASURES
+# TAS 20 AND ERQ AND AOT-E
+Data <- dplyr::rename(Data, "TAS1"="TAS20_1_1", "TAS2"="TAS20_2_1", "TAS3"="TAS20_3_1", "TAS4"="TAS20_4_1", "TAS5"="TAS20_5_1", "TAS6"="TAS20_6_1", "TAS7"="TAS20_7_1", "TAS8"="TAS20_8_1", "TAS9"="TAS20_9_1", "TAS10"="TAS20_10_1", "TAS11"="TAS20_11_1", "TAS12"="TAS20_12_1", "TAS13"="TAS20_13_1", "TAS14"="TAS20_14_1", "TAS15"="TAS20_15_1", "TAS16"="TAS20_16_1", "TAS17"="TAS20_17_1", "TAS18"="TAS20_18_1", "TAS19"="TAS20_19_1", "TAS20"="TAS20_20_1", "ERQ1"="ERQ_1_1", "ERQ2"="ERQ_2_1", "ERQ3"="ERQ_3_1", "ERQ4"="ERQ_4_1", "ERQ5"="ERQ_5_1", "ERQ6"="ERQ_6_1", "ERQ7"="ERQ_7_1", "ERQ8"="ERQ_8_1", "ERQ9"="ERQ_9_1", "ERQ10"="ERQ_10_1", "AOT_E1"="AOT.E_1_1", "AOT_E2"="AOT.E_2_1", "AOT_E3"="AOT.E_3_1", "AOT_E4"="AOT.E_4_1", "AOT_E5"="AOT.E_5_1", "AOT_E6"="AOT.E_6_1", "AOT_E7"="AOT.E_7_1", "AOT_E8"="AOT.E_8_1")
+# SPI-135 OPENNESS AND COVID CONSPIRACY AND BCTI (PLUS ATTENTION CHECK 2)
+Data <- dplyr::rename(Data, "SPI_135_Open1"="SPI.135_1_1", "SPI_135_Open2"="SPI.135_2_1", "SPI_135_Open3"="SPI.135_3_1", "SPI_135_Open4"="SPI.135_4_1", "SPI_135_Open5"="SPI.135_5_1", "SPI_135_Open6"="SPI.135_6_1", "SPI_135_Open7"="SPI.135_7_1", "SPI_135_Open8"="SPI.135_8_1", "SPI_135_Open9"="SPI.135_9_1", "SPI_135_Open10"="SPI.135_10_1", "SPI_135_Open11"="SPI.135_11_1", "SPI_135_Open12"="SPI.135_12_1", "SPI_135_Open13"="SPI.135_13_1", "SPI_135_Open14"="SPI.135_14_1", "VCB1"="VCB_1_1", "VCB2"="VCB_2_1", "VCB3"="VCB_3_1", "VCB4"="VCB_4_1", "VCB5"="VCB_5_1", "VCB6"="VCB_6_1", "ATC2"="ATQ_1", "BCTI1"="BCTI_1_1", "BCTI2"="BCTI_2_1", "BCTI3"="BCTI_3_1", "BCTI4"="BCTI_4_1", "BCTI5"="BCTI_5_1", "BCTI6"="BCTI_6_1", "BCTI7"="BCTI_7_1", "BCTI8"="BCTI_8_1", "BCTI9"="BCTI_9_1", "BCTI10"="BCTI_10_1", "BCTI11"="BCTI_11_1", "BCTI12"="BCTI_12_1", "BCTI13"="BCTI_13_1", "BCTI14"="BCTI_14_1")
+# INFO SHEET ATCS, VIM, COVID SEVERITY, VACCINE EFFECTIVENESS, VACCINE DANGEROUSNESS, 
+Data <- dplyr::rename(Data,"info_sheet_ATC1"="PfizerVax_1","info_sheet_ATC2"="PfizerVax_2","VIM1"="VIM_1_1", "VIM2"="VIM_2_1", "VIM3"="VIM_3_1", "VIM4"="VIM_4_1", "VIM5"="VIM_5_1", "COVID_sev1"="DS_1_1", "COVID_sev2"="DS_2_1", "COVID_sev3"="DS_3_1", "COVID_sev4"="DS_4_1", "COVID_sev5"="DS_5_1", "COVID_sev6"="DS_6_1", "COVID_sev7"="DS_7_1", "COVID_sev8"="DS_8_1", "vax_effec1"="VE_1_1", "vax_effec2"="VE_2_1", "vax_effec3"="VE_3_1", "vax_effec4"="VE_4_1", "vax_effec5"="VE_5_1", "vax_effec6"="VE_6_1", "vax_effec7"="VE_7_1", "vax_dang1"="VD_1_1", "vax_dang2"="VD_2_1", "vax_dang3"="VD_3_1", "vax_dang4"="VD_4_1", "vax_dang5"="VD_5_1", "vax_dang6"="VD_6_1", "vax_dang7"="VD_7_1", "survey_satifaction"="SS_1", "inf_likelihood1"="IL_1_1", "inf_likelihood2"="IL_2_1", "inf_likelihood3"="IL_3_1", "inf_likelihood4"="IL_4_1", "inf_likelihood5"="IL_5_1", "inf_likelihood6"="IL_6_1")
+# ATTENTION CHECK 3, MFQ, CRT, VACCINE POSITIVENESS, COVID VAX LITERACY, BEHAVIOR CONVICTION, MRS, ATTENTION CHECK 4
+Data <- dplyr::rename(Data, "ATC3"="ATQ_2", "MFQ1"="MFQ_1_1", "MFQ2"="MFQ_2_1", "MFQ3"="MFQ_3_1", "MFQ4"="MFQ_4_1", "MFQ5"="MFQ_5_1", "MFQ6"="MFQ_6_1", "MFQ7"="MFQ_7_1", "MFQ8"="MFQ_8_1", "MFQ9"="MFQ_9_1", "MFQ10"="MFQ_10_1", "MFQ11"="MFQ_11_1", "MFQ12"="MFQ_12_1", "MFQ13"="MFQ_13_1", "MFQ14"="MFQ_14_1", "MFQ15"="MFQ_15_1", "MFQ16"="MFQ_16_1", "MFQ17"="MFQ_17_1", "MFQ18"="MFQ_18_1", "MFQ19"="MFQ_19_1", "MFQ20"="MFQ_20_1", "MFQ21"="MFQ_21_1", "MFQ22"="MFQ_22_1", "MFQ23"="MFQ_23_1", "MFQ24"="MFQ_24_1", "MFQ25"="MFQ_25_1", "MFQ26"="MFQ_26_1", "MFQ27"="MFQ_27_1", "MFQ28"="MFQ_28_1", "MFQ29"="MFQ_29_1", "MFQ30"="MFQ_30_1", "MFQ31"="MFQ_31_1", "CRT1"="CRT_1", "CRT2"="CRT_2", "CRT3"="CRT_3", "CRT4"="CRT_4", "CRT5"="CRT_5", "CRT6"="CRT_6", "CRT7"="CRT_7", "CRT_exp"="CRT_8", "vax_pos"="VP_1", "COVID_vax_lit1"="VL_1_1", "COVID_vax_lit2"="VL_2_1", "COVID_vax_lit3"="VL_3_1", "COVID_vax_lit4"="VL_4_1", "COVID_vax_lit5"="VL_5_1", "COVID_vax_lit6"="VL_6_1", "COVID_vax_lit7"="VL_7_1", "COVID_vax_lit8"="VL_8_1", "COVID_vax_lit9"="VL_9_1", "COVID_vax_lit10"="VL_10_1", "COVID_vax_lit11"="VL_11_1", "COVID_vax_lit12"="VL_12_1", "COVID_vax_lit13"="VL_13_1", "COVID_vax_lit14"="VL_14_1", "COVID_vax_lit15"="VL_15_1", "COVID_vax_lit16"="VL_16_1", "COVID_vax_lit17"="VL_17_1", "COVID_vax_lit18"="VL_18_1", "COVID_vax_lit19"="VL_19_1", "COVID_vax_lit20"="VL_20_1", "COVID_vax_lit21"="VL_21_1", "COVID_vax_lit22"="VL_22_1", "COVID_vax_lit23"="VL_23_1", "COVID_vax_lit24"="VL_24_1", "COVID_vax_lit25"="VL_25_1", "COVID_vax_lit26"="VL_26_1", "COVID_vax_lit27"="VL_27_1", "COVID_vax_lit28"="VL_28_1", "COVID_vax_lit29"="VL_29_1", "COVID_vax_lit30"="VL_30_1", "COVID_vax_lit31"="VL_31_1", "COVID_vax_lit32"="VL_32_1", "COVID_vax_lit33"="VL_33_1", "COVID_vax_lit34"="VL_34_1", "COVID_vax_lit35"="VL_35_1", "COVID_vax_lit36"="VL_36_1", "behav_convic1"="BC_1", "behav_convic2"="BC_2", "behav_convic3"="BC_3", "behav_convic4"="BC_4", "behav_convic5"="BC_5", "behav_convic6"="BC_6", "behav_convic7"="BC_7", "ATC4"="ATQ_3")
+# SAHL.E, IAT, TASK SATISFACTION, MATRIX COMPLETION CODE, ATTENTION CHECK 5, SURVEY DURATION
+Data <- dplyr::rename(Data,"SAHL_E1"="SAHL.E_1","SAHL_E2"="SAHL.E_2","SAHL_E3"="SAHL.E_3","SAHL_E4"="SAHL.E_4","SAHL_E5"="SAHL.E_5","SAHL_E6"="SAHL.E_6","SAHL_E7"="SAHL.E_7","SAHL_E8"="SAHL.E_8","SAHL_E9"="SAHL.E_9","SAHL_E10"="SAHL.E_10","SAHL_E11"="SAHL.E_11","SAHL_E12"="SAHL.E_12","SAHL_E13"="SAHL.E_13","SAHL_E14"="SAHL.E_14","SAHL_E15"="SAHL.E_15","SAHL_E16"="SAHL.E_16","SAHL_E17"="SAHL.E_17","SAHL_E18"="SAHL.E_18","IAT1"="Q1.RP1","IAT2"="Q2.RP2","IAT3"="Q3.RP3","IAT4"="Q4.RP4","IAT5"="Q5.RP5","IAT6"="Q6.RP6","IAT7"="Q7.RP7","IAT8"="Q8.RN1","IAT9"="Q9.RN2","IAT10"="Q10.RN3","IAT11"="Q11.RN4","IAT12"="Q12.RN5","IAT13"="Q13.RN6","IAT14"="Q14.RN7","IAT15"="Q15.LP1","IAT16"="Q16.LP2","IAT17"="Q17.LP3","IAT18"="Q18.LP4","IAT19"="Q19.LP5","IAT20"="Q20.LP6","IAT21"="Q21.LP7","IAT22"="Q22.LN1","IAT23"="Q23.LN2","IAT24"="Q24.LN3","IAT25"="Q25.LN4","IAT26"="Q26.LN5","IAT27"="Q27.LN6","IAT28"="Q28.LN7","task_satifaction"="SS_2","matrix_code"="Matrix.link","ATC5"="EOS_1","SurveyDuration"="Q_TotalDuration")
+Data <- dplyr::rename(Data, "MD1_WP" = "MD_4_1", "MD2_WSJ" = "MD_1_1", "MD3_NYT" = "MD_14_1", "MD4_FN" = "MD_2_1", "MD5_BBC" = "MD_7_1", "MD6_BB" = "MD_5_1", "MD7_ET" = "MD_6_1", "MD8_NN" = "MD_8_1", "MD9_TGP" = "MD_10_1", "MD10_IW" = "MD_9_1", "MD11_TS" = "MD_11_1", "MD12_P" = "MD_13_1", "MD13_R" = "MD_3_1", "MD14_X" = "MD_15_1", "MD15_YT" = "MD_12_1")
+Data$Progress <- as.numeric(Data$Progress)
+Data <- Data %>% filter(Progress >= 99)
+
+## RENAMING RESPONSE SCALE
+# UMN MEASURES:
+Data <- Data %>% 
+  mutate(across(BCTI1:BCTI14, ~ recode(.x, "Completely False (1)" = 1, "(2)" = 2,"(3)" = 3, "(4)" = 4, "Totally Unsure (5)" = 5, "(6)" = 6, "(7)" = 7, "(8)" = 8, "Completely True (9)" = 9, .default=NULL)))
+Data <- Data %>% 
+  mutate(across(VCB1:VCB6, ~ recode(.x, "Completely False (1)" = 1, "(2)" = 2,"(3)" = 3, "(4)" = 4, "Totally Unsure (5)" =5, "(6)" = 6, "(7)" = 7, "(8)" = 8, "Completely True (9)" = 9, .default=NULL)))
+Data <- Data %>% 
+  mutate(across(AOT_E1:AOT_E8, ~ recode(.x, "1 - Strongly Disagree" = 1, "2 - Moderately Disagree" = 2,"3 - Slightly Disagree" = 3, "4 - Slightly Agree" = 4, "5 - Moderately Agree" = 5, "6 - Strongly Agree" = 6, .default=NULL)))
+Data <- Data %>% 
+  mutate(across(VIM1:VIM5, ~ recode(.x, "Completely Disagree" = 1, "2" = 2, "3" = 3, "Neutral" = 4, "5" = 5, "6" = 6, "Completely Agree" = 7, .default=NULL)))
+Data <- Data %>% 
+  mutate(across(COVID_sev1:COVID_sev8, ~ recode(.x, "Extremely Unlikely (1)" = 1, "(2)" = 2, "(3)" = 3, "Neutral (4)" = 4, "(5)" = 5, "(6)" = 6, "Extremely Likely (7)" = 7, .default=NULL)))
+Data <- Data %>% 
+  mutate(across(vax_effec1:vax_effec7, ~ recode(.x, "No Protection (1)" = 1, "(2)" = 2, "(3)" = 3, "Moderate Protection (4)" = 4, "(5)" = 5, "(6)" = 6, "Complete Protection (7)" = 7, .default=NULL)))
+Data <- Data %>% 
+  mutate(across(vax_dang1:vax_dang7, ~ recode(.x, "Completely Disagree (1)" = 1, "(2)" = 2, "(3)" = 3, "Totally Unsure (4)" = 4, "(5)" = 5, "(6)" = 6, "Completely Agree (7)" = 7, .default=NULL)))
+Data <- Data %>% 
+  mutate(across(inf_likelihood1:inf_likelihood6, ~ recode(.x, "No Chance (1)" = 1, "(2)" = 2, "(3)" = 3, "Moderate Chance (4)" = 4, "(5)" = 5, "(6)" = 6, "Very High Chance (7)" = 7, .default=NULL)))
+Data <- Data %>% mutate(vax_pos = recode(vax_pos, "1 = not at all positive" = 1, "2 = slightly positive" = 2, "3 = moderately positive" = 3, "4 = very positive" = 4, "5 = extremely positive" = 5, .default=NULL))
+```
+
+
+Filter by approved IDs across sites
+```{r}
+#List of IDs approved across all sites
+approved_IDs <- read.csv("B:\\Studies\\mittal_2024_bronstein_studyone\\data\\phase1_IDs_3_5_25.csv")
+approved_IDs <- approved_IDs %>% 
+  filter(prolific_status == "APPROVED")
+approved_IDs <- approved_IDs %>% 
+  arrange(date) %>%  # Sort by ID and Date (earliest first)
+  group_by(prolific_id) %>%       # Group by ID
+  filter(date == min(date)) %>%  # Keep only the row with the earliest date per ID (DQ issue 1: multiple responses by same user)
+  ungroup()  
+
+# Check if ID is in PROLIFIC_PID (uses metadata), if there is no value in PROLIFIC_PID uses the manual entry ID (prolific_id, less reliable)
+# (DQ issue 2: meta-data ID did not carry across sites)
+Data <-  Data %>% 
+  filter(
+    (PROLIFIC_PID %in% approved_IDs$prolific_id) |
+      (is.na(PROLIFIC_PID) | PROLIFIC_PID == "" | PROLIFIC_PID == "{{%PROLIFIC_PID%}}") & (prolific_id %in% approved_IDs$prolific_id))
+
+# Attention Checks converted to binary: 0 = NOT PASSED, 1 = PASSED 
+Data <- Data %>% mutate(ATC1 = recode(ATC1, "I am under 18 years old" = 1, "I am over 18 years old" = 0, "I am exactly 18 years old" = 0, .default=NULL))
+Data <- Data %>% mutate(ATC2 = recode(ATC2, "True" = 0, "False" = 1, .default=NULL))
+Data <- Data %>% mutate(ATC3 = recode(ATC3, "True" = 0, "False" = 1, .default=NULL))
+Data <- Data %>% mutate(ATC4 = recode(ATC4, "True" = 1, "False" = 0, .default=NULL))
+Data$age <- as.numeric(Data$age)
+Data$ATC5 <- as.numeric(Data$ATC5)
+#Check if age (demographic) + ATC5 (year born) = current year +- 1 year (to allow for normal human error, calendar timing, etc) 
+Data$ATC5 <- abs(Data$ATC5 + Data$age - year(Data$RecordedDate))<=1  
+# Find sum of ATCs passed
+# (DQ issue 3: na.rm because some participants completed task separately / were unable to finish Qualtrics survey after; 
+# preventing them from answering ATC5)
+Data <- Data %>% mutate(ATC_ttl = (rowSums(select(., ATC1,ATC2,ATC3,ATC4,ATC5),na.rm = TRUE)))
+# Filters participants to those who got their age / DoB right and answered at least 3 out of the 4 other ATCs correct
+Data <- Data %>% 
+  filter(ATC_ttl > 2 & ATC5 == 1)
+## NOTE: Additional filtering of data quality must be completed after measures are scored (i.e., vaccine information sheet attention checks)
+```
+
+
+#SCORING MEASURES (UMN SITE)
+CRT, AOT, Media Diet, BCTI, VCB, VIM, COVID Severity, Vaccine Effectiveness, Vaccine Danger, Info Sheet ATCs + Vaccine Info Sheet TOTAL
+```{r}
+#Relevant demo vars
+ProcData <- select(Data,c("prolific_id","race","sex","gender","sexuality","age","education","employment","fam_income","pres_candidate","political_party","state"))
+#Include meta-data PROLIFIC_PIT if possible (more reliable than user-input ID, see data quality issue 2)
+
+ProcData$prolific_id <- ifelse(
+  is.na(Data$PROLIFIC_PID) | Data$PROLIFIC_PID == "" | Data$PROLIFIC_PID == "{{%PROLIFIC_PID%}}",
+  Data$prolific_id, 
+  Data$PROLIFIC_PID)
+
+#CRT
+CRT <- select(Data,contains("CRT"))
+CRT <- select(CRT,-c("CRT_exp"))
+CRT$CRT1 <- as.integer(CRT$CRT1 == 4)
+CRT$CRT2 <- as.integer(CRT$CRT2 == 10)
+CRT$CRT3 <- as.integer(CRT$CRT3 == 39)
+# Special cases that need to be handled individually
+CRT <- CRT %>%
+  mutate(CRT4 = case_when(
+    grepl("This is a trickish question.", CRT4) ~ "0", #ppt answers "first or second", still wrong
+    CRT4 %in% c("sdecond", "secod") ~ "2", #typos
+    TRUE ~ CRT4
+  ))
+#Non-case sensitive grading of question 4
+CRT$CRT4 <- as.integer(grepl("\\b(second|2)\\b", CRT$CRT4, ignore.case = TRUE))
+CRT$CRT5 <- as.integer(CRT$CRT5 == 8)
+#Add Enily to ATC6
+CRT$CRT6 <- as.integer(grepl("emily|enily", CRT$CRT6, ignore.case = TRUE)) #single correct answer of "enily"
+CRT$CRT7 <- as.integer(CRT$CRT7 == 0)
+ProcData$CRT_Score <- rowSums(CRT)
+
+AOT <- select(Data,contains("AOT"))
+AOT <- as.data.frame(lapply(AOT,as.numeric))
+#Reverse scores items: 3, 4, 5, 8
+AOT$AOT_E3 <- 7 - AOT$AOT_E3
+AOT$AOT_E4 <- 7 - AOT$AOT_E4
+AOT$AOT_E5 <- 7 - AOT$AOT_E5
+AOT$AOT_E8 <- 7 - AOT$AOT_E8
+ProcData$AOT <- rowMeans(AOT)
+
+#Pull Media Diet Values
+MD <- Data %>%
+  select(contains("MD")) %>%
+  { .[, order(as.numeric(gsub("\\D", "", names(.))))] }
+#Extract numeric values only from scores
+MD <- MD %>%
+  mutate(across(everything(), ~ as.numeric(str_extract(., "^\\d+"))))
+#Score measure (Mainstream, alternative, social media)
+#This measure was added later into the study (DQ issue 4: 48 ppts are missing values)
+MD <- MD %>% mutate(MD_mainstream = rowMeans(across(1:5),na.rm = TRUE)) 
+MD <- MD %>% mutate(MD_alternative = rowMeans(across(6:10),na.rm = TRUE)) 
+MD <- MD %>% mutate(MD_socialMedia = rowMeans(across(11:15),na.rm = TRUE))
+ProcData <- cbind(ProcData, MD[, c("MD_mainstream", "MD_alternative", "MD_socialMedia")])
+#Score remaining measures
+ProcData$BCTI <- ProcData$vaxConspiracyBelief <- Data %>% select(., contains("BCTI")) %>% rowMeans(.)
+ProcData$vaxConspiracyBelief <- Data %>% select(., contains("VCB")) %>% rowSums(.)
+ProcData$vaxIntentionMeas <- Data %>% select(., contains("VIM")) %>% rowSums(.)
+ProcData$COVIDSeverityPerc <- Data %>% select(., contains("COVID_sev")) %>% rowSums(.)
+ProcData$VaxEffectivenessPerc <- Data %>% select(., contains("vax_effec")) %>% rowSums(.)
+ProcData$VaxDangerPerc <- 
+VaxDanger <- select(Data,contains("vax_dang"))
+VaxDanger$vax_dang4 = 7 - VaxDanger$vax_dang4 
+ProcData$VaxDangerPerc <- rowSums(VaxDanger)
+ProcData$InfectionRiskPerc <- Data %>% select(., contains("inf_likelihood")) %>% rowSums(.)
+ProcData$VaxPositivity <- Data %>% select(., contains("vax_pos")) %>% rowSums(.)
+#Score attention checks from vaccine information sheet
+Data <- Data %>% mutate(info_sheet_ATC1 = ifelse(info_sheet_ATC1 == "1 in 6", 1, 0))
+Data <- Data %>% mutate(info_sheet_ATC2 = ifelse(info_sheet_ATC2 == "Dizziness", 1, 0))
+ProcData$VaxInfoSheet_ATC <- (Data$info_sheet_ATC1 + Data$info_sheet_ATC2)
+#Data quality filter - remove participants who answered both questions incorrectly
+ProcData <- ProcData %>% filter(VaxInfoSheet_ATC > 0)
+describe(ProcData[,13:26])
+```
+
+
+```{r}
+CorrelMatrix <- ProcData %>% 
+  select(13:25)
+CorrelMatrix <- na.omit(CorrelMatrix)
+res <- cor(CorrelMatrix)
+round(res, 2)
+library("Hmisc")
+res2 <- rcorr(as.matrix(CorrelMatrix))
+
+library(corrplot)
+
+pdf("B:\\Studies\\mittal_2024_bronstein_studyone\\Figures\\ESBCorrelPhase1.pdf")
+corrplot(res, method = "number", type = "lower", title = "UMN Variables Correlation Matrix", 
+         order = "hclust",
+         tl.col = "black", tl.srt = 45, number.cex = 0.7)
+dev.off()
+
+
+cor.mtest <- function(mat, conf.level = 0.95) {
+  mat <- as.matrix(mat)
+  n <- ncol(mat)
+  p.mat <- matrix(NA, n, n)
+  diag(p.mat) <- 0
+  for (i in 1:(n - 1)) {
+    for (j in (i + 1):n) {
+      tmp <- cor.test(mat[, i], mat[, j], method = "pearson")
+      p.mat[i, j] <- p.mat[j, i] <- tmp$p.value
+    }
+  }
+  colnames(p.mat) <- rownames(p.mat) <- colnames(mat)
+  p.mat
+}
+
+p.mat <- cor.mtest(res)
+
+#This code will save a plot of significant correlations between measures (UMN site only atm)
+pdf("B:\\Studies\\mittal_2024_bronstein_studyone\\Figures\\2025-10-21_SigESBCorrelPhase1.pdf") #Update the date if further ppt filtering
+corrplot(res, method = "circle", type = "lower", title = "Significant UMN Variables Correlation Matrix", order = "hclust", tl.srt = 45, number.cex = 0.7, p.mat = p.mat, sig.level = 0.05, insig = "label_sig")
+dev.off()
+
+
+```
+
+
