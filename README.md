@@ -30,3 +30,5 @@ Auction (Danielle), PRL (Danielle)
 Kent: CAPE, CAT-PD, IDAS-II, BFAS-O, BFMIPIPM
 
 UMN: BCTI
+
+The EmotionRegulation_FluidIntelligence_SA file is Sam Agnoli's script that includes attention checks (not updated) and renaming/wrangling of a lot of questionnaires. 
